@@ -64,6 +64,45 @@ openclaw plugins install ./
 
 ### Step 2 — Configure
 
+#### Option A: CLI (Recommended)
+
+```bash
+# Quick setup with default port (3210), no auth
+openclaw-openapi setup
+
+# Specify port and auto-generate a secure token
+openclaw-openapi setup --port 3210 --generate-token
+
+# Specify all options explicitly
+openclaw-openapi setup --port 8080 --host 0.0.0.0 --token my-secret
+
+# Check current configuration
+openclaw-openapi status
+```
+
+#### Option B: One-liner Shell Script
+
+```bash
+# Auto-generate token + configure + restart
+bash scripts/setup.sh --port 3210 --generate-token
+
+# Full options
+bash scripts/setup.sh --port 8080 --host 0.0.0.0 --token my-secret --no-restart
+```
+
+#### Option C: OpenClaw Built-in Channel CLI
+
+```bash
+openclaw channels add --channel openapi --token "3210:my-secret"
+```
+
+The `--token` parameter accepts a composite format: `port:token` or `host:port:token`.
+
+#### Option D: Manual JSON Edit
+
+<details>
+<summary>Click to expand</summary>
+
 Edit `~/.openclaw/openclaw.json`:
 
 ```json
@@ -78,6 +117,10 @@ Edit `~/.openclaw/openclaw.json`:
   }
 }
 ```
+
+</details>
+
+#### Configuration Reference
 
 | Field | Default | Description |
 |-------|---------|-------------|
@@ -317,6 +360,12 @@ openclaw-openapi/
 ├── package.json
 ├── tsconfig.json
 ├── index.ts                  # Plugin entry point
+│
+├── bin/                       # CLI tools
+│   └── openapi-cli.js         # `openclaw-openapi` command
+│
+├── scripts/                   # Shell scripts
+│   └── setup.sh               # One-liner install & configure
 │
 ├── src/                      # Server-side plugin
 │   ├── openclaw-plugin-sdk.d.ts  # SDK type declarations

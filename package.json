@@ -4,10 +4,15 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "openclaw-openapi": "./bin/openapi-cli.js"
+  },
   "files": [
     "dist",
     "src",
     "client",
+    "bin",
+    "scripts",
     "index.ts",
     "tsconfig.json",
     "openclaw.plugin.json"

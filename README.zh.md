@@ -62,6 +62,45 @@ openclaw plugins install ./
 
 ### 第二步 — 配置
 
+#### 方式 A：命令行工具（推荐）
+
+```bash
+# 快速配置，默认端口 3210，无认证
+openclaw-openapi setup
+
+# 指定端口 + 自动生成安全 token
+openclaw-openapi setup --port 3210 --generate-token
+
+# 手动指定全部参数
+openclaw-openapi setup --port 8080 --host 0.0.0.0 --token my-secret
+
+# 查看当前配置
+openclaw-openapi status
+```
+
+#### 方式 B：一键脚本
+
+```bash
+# 自动生成 token + 配置 + 重启
+bash scripts/setup.sh --port 3210 --generate-token
+
+# 完整参数
+bash scripts/setup.sh --port 8080 --host 0.0.0.0 --token my-secret --no-restart
+```
+
+#### 方式 C：OpenClaw 内置通道 CLI
+
+```bash
+openclaw channels add --channel openapi --token "3210:my-secret"
+```
+
+`--token` 参数支持复合格式：`port:token` 或 `host:port:token`。
+
+#### 方式 D：手动编辑 JSON
+
+<details>
+<summary>点击展开</summary>
+
 编辑 `~/.openclaw/openclaw.json`：
 
 ```json
@@ -76,6 +115,10 @@ openclaw plugins install ./
   }
 }
 ```
+
+</details>
+
+#### 配置项说明
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
@@ -315,6 +358,12 @@ openclaw-openapi/
 ├── package.json
 ├── tsconfig.json
 ├── index.ts                  # 插件入口
+│
+├── bin/                       # 命令行工具
+│   └── openapi-cli.js         # `openclaw-openapi` 命令
+│
+├── scripts/                   # Shell 脚本
+│   └── setup.sh               # 一键安装配置脚本
 │
 ├── src/                      # 服务端插件代码
 │   ├── openclaw-plugin-sdk.d.ts  # SDK 类型声明

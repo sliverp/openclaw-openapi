@@ -144,6 +144,22 @@ declare module "openclaw/plugin-sdk" {
     logoutAccount?: (ctx: GatewayLogoutContext) => Promise<GatewayLogoutResult>;
   }
 
+  export interface SetupInput {
+    token?: string;
+    tokenFile?: string;
+    useEnv?: boolean;
+    name?: string;
+    [key: string]: unknown;
+  }
+
+  export interface ChannelPluginSetup {
+    resolveAccountId?: (ctx: { accountId?: string }) => string;
+    applyAccountName?: (ctx: { cfg: OpenClawConfig; accountId: string; name: string }) => OpenClawConfig;
+    validateInput?: (ctx: { input: SetupInput }) => string | null;
+    applyConfig?: (ctx: { cfg: OpenClawConfig; input: SetupInput }) => OpenClawConfig;
+    applyAccountConfig?: (ctx: { cfg: OpenClawConfig; accountId: string; input: SetupInput }) => OpenClawConfig;
+  }
+
   export interface ChannelPlugin<TAccount = unknown> {
     id: string;
     meta?: ChannelPluginMeta;
@@ -152,6 +168,7 @@ declare module "openclaw/plugin-sdk" {
     config?: ChannelPluginConfig<TAccount>;
     outbound?: ChannelPluginOutbound;
     gateway?: ChannelPluginGateway<TAccount>;
+    setup?: ChannelPluginSetup;
     status?: unknown;
     [key: string]: unknown;
   }
