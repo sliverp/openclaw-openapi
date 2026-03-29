@@ -51,8 +51,35 @@ export function createWsServer(opts: WsServerOptions): OpenApiWsServer {
     let authenticated = false;
     let clientId = "";
 
+    // 尝试通过 Header 认证: Authorization: Bearer <token>
+    const authHeader = req.headers["authorization"];
+    if (authHeader) {
+      const headerToken = authHeader.replace(/^Bearer\s+/i, "");
+      if (!account.token || headerToken === account.token) {
+        authenticated = true;
+        // 从 query string 或 header 获取 clientId
+        const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+        clientId = url.searchParams.get("clientId") || `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const existing = clients.get(clientId);
+        if (existing) {
+          sendToWs(existing.ws, { type: "error", message: "Replaced by new connection" });
+          existing.ws.close(4000, "Replaced");
+        }
+
+        clients.set(clientId, { ws, clientId, authenticatedAt: Date.now() });
+        sendToWs(ws, { type: "auth_result", ok: true });
+        log?.info(`[openapi] Client "${clientId}" authenticated via header`);
+        onClientConnected?.(clientId);
+      } else {
+        sendToWs(ws, { type: "auth_result", ok: false, error: "Invalid token" });
+        ws.close(4003, "Invalid token");
+        return;
+      }
+    }
+
     // 30 秒内未认证则断开
-    const authTimeout = setTimeout(() => {
+    const authTimeout = authenticated ? undefined : setTimeout(() => {
       if (!authenticated) {
         sendToWs(ws, { type: "error", message: "Authentication timeout" });
         ws.close(4001, "Authentication timeout");
@@ -81,7 +108,7 @@ export function createWsServer(opts: WsServerOptions): OpenApiWsServer {
           return;
         }
 
-        clearTimeout(authTimeout);
+        if (authTimeout) clearTimeout(authTimeout);
         authenticated = true;
         clientId = msg.clientId || `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -109,7 +136,7 @@ export function createWsServer(opts: WsServerOptions): OpenApiWsServer {
     });
 
     ws.on("close", () => {
-      clearTimeout(authTimeout);
+      if (authTimeout) clearTimeout(authTimeout);
       if (clientId && clients.has(clientId)) {
         clients.delete(clientId);
         log?.info(`[openapi] Client "${clientId}" disconnected`);

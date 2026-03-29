@@ -100,7 +100,7 @@ function handleClientMessage(
     direction: "inbound",
   });
 
-  const cfg = runtime.getConfig();
+  const cfg = ctx.cfg;
 
   // 解析路由
   const peerId = clientId;
