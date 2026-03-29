@@ -158,8 +158,25 @@ export class OpenClawClient {
         this.ws?.close();
       }, this.opts.connectTimeout);
 
+      // 构建带 clientId query param 的 URL
+      let wsUrl = this.opts.url;
+      if (this.opts.clientId) {
+        const sep = wsUrl.includes("?") ? "&" : "?";
+        wsUrl += `${sep}clientId=${encodeURIComponent(this.opts.clientId)}`;
+      }
+
       try {
-        this.ws = new WebSocket(this.opts.url);
+        // Node.js ws 库: new WebSocket(url, options) — 第二个参数直接传 options 对象
+        // 浏览器原生 WebSocket: 不支持自定义 header，走 query string fallback
+        const isNode = typeof globalThis.process !== "undefined" && typeof globalThis.process.versions?.node === "string";
+        if (isNode && this.opts.token) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          this.ws = new WebSocket(wsUrl, {
+            headers: { Authorization: `Bearer ${this.opts.token}` },
+          } as any);
+        } else {
+          this.ws = new WebSocket(wsUrl);
+        }
       } catch (err) {
         clearTimeout(timer);
         reject(err);
@@ -167,12 +184,7 @@ export class OpenClawClient {
       }
 
       this.ws.onopen = () => {
-        // 发送认证消息
-        this.ws!.send(JSON.stringify({
-          type: "auth",
-          token: this.opts.token || undefined,
-          clientId: this.opts.clientId || undefined,
-        }));
+        // Header 认证模式下不需要发 auth 消息，等服务端返回 auth_result 即可
       };
 
       this.ws.onmessage = (evt: MessageEvent) => {
