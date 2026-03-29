@@ -1,0 +1,14 @@
+{
+  "id": "openclaw-openapi",
+  "name": "OpenClaw Open API",
+  "description": "WebSocket-based Open API channel plugin for remote client connections",
+  "channels": ["openapi"],
+  "extensions": ["./dist/index.js"],
+  "skills": [],
+  "capabilities": {},
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

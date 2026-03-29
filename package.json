@@ -1,0 +1,40 @@
+{
+  "name": "@openclaw/openapi",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "client",
+    "index.ts",
+    "tsconfig.json",
+    "openclaw.plugin.json"
+  ],
+  "openclaw": {
+    "id": "openclaw-openapi",
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "channel": {
+      "id": "openapi",
+      "label": "Open API"
+    }
+  },
+  "scripts": {
+    "build": "tsc || true",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  }
+}
