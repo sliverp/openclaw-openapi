@@ -4,8 +4,12 @@
  * openclaw-openapi CLI
  *
  * 命令:
- *   openclaw-openapi setup [options]   配置 Open API 插件
- *   openclaw-openapi install           安装插件到 OpenClaw
+ *   openclaw-openapi setup [options]    配置 Open API 插件
+ *   openclaw-openapi install [--force]  安装插件到 OpenClaw
+ *   openclaw-openapi uninstall          卸载插件
+ *   openclaw-openapi reinstall          卸载后重新安装
+ *   openclaw-openapi status             查看状态
+ *   openclaw-openapi generate-token     生成随机 token
  *
  * Setup 选项:
  *   --port <port>       WebSocket 监听端口 (默认: 3210)
@@ -16,7 +20,7 @@
  *   --name <name>       账户名称
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync, unlinkSync, lstatSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, symlinkSync, unlinkSync, lstatSync, rmSync } from "fs";
 import { join, dirname } from "path";
 import { homedir } from "os";
 import { execSync } from "child_process";
@@ -26,6 +30,14 @@ import { fileURLToPath } from "url";
 // ─── 参数解析 ───
 const args = process.argv.slice(2);
 const command = args[0];
+
+/** 返回用户实际应该输入的命令前缀 */
+function getCmd() {
+  const invoked = process.argv[1];
+  return invoked && invoked.endsWith("openapi-cli.js")
+    ? `node ${invoked}`
+    : "openclaw-openapi";
+}
 
 function getArg(name) {
   const idx = args.indexOf(`--${name}`);
@@ -38,15 +50,17 @@ function hasFlag(name) {
 }
 
 function printUsage() {
+  const cmd = getCmd();
   console.log(`
 openclaw-openapi — OpenClaw Open API 插件 CLI
 
 用法:
-  openclaw-openapi setup [options]    配置插件
-  openclaw-openapi install            安装插件
-  openclaw-openapi uninstall          卸载插件
-  openclaw-openapi status             查看当前配置
-  openclaw-openapi generate-token     生成随机 token
+  ${cmd} setup [options]    配置插件
+  ${cmd} install [--force]  安装插件
+  ${cmd} uninstall          卸载插件
+  ${cmd} reinstall          卸载后重新安装
+  ${cmd} status             查看当前配置
+  ${cmd} generate-token     生成随机 token
 
 Setup 选项:
   --port <port>       WebSocket 端口 (默认: 3210)
@@ -59,16 +73,19 @@ Setup 选项:
 
 示例:
   # 快速配置（默认端口 3210，无认证）
-  openclaw-openapi setup
+  ${cmd} setup
 
   # 指定端口和 token
-  openclaw-openapi setup --port 8080 --token my-secret
+  ${cmd} setup --port 8080 --token my-secret
 
   # 自动生成安全 token
-  openclaw-openapi setup --port 3210 --generate-token
+  ${cmd} setup --port 3210 --generate-token
+
+  # 卸载后重新安装
+  ${cmd} reinstall
 
   # 查看当前配置
-  openclaw-openapi status
+  ${cmd} status
 `);
 }
 
@@ -110,6 +127,43 @@ function writeConfig(config) {
 
 function generateToken(length = 32) {
   return randomBytes(length).toString("base64url");
+}
+
+// ─── 工具函数 ───
+
+function getPluginDir() {
+  const __filename = fileURLToPath(import.meta.url);
+  return join(dirname(__filename), "..");
+}
+
+function getTargetDir() {
+  return join(getExtensionsDir(), "openclaw-openapi");
+}
+
+/**
+ * 移除已安装的插件目录（符号链接或真实目录都能处理）
+ * @returns {boolean} 是否成功移除
+ */
+function removePluginDir() {
+  const targetDir = getTargetDir();
+  try {
+    if (!existsSync(targetDir)) return false;
+    const stat = lstatSync(targetDir);
+    if (stat.isSymbolicLink()) {
+      unlinkSync(targetDir);
+      console.log("✅ 已移除插件符号链接");
+    } else if (stat.isDirectory()) {
+      rmSync(targetDir, { recursive: true, force: true });
+      console.log("✅ 已移除插件目录");
+    } else {
+      unlinkSync(targetDir);
+      console.log("✅ 已移除插件文件");
+    }
+    return true;
+  } catch (err) {
+    console.error(`⚠ 移除失败: ${err.message}`);
+    return false;
+  }
 }
 
 // ─── 命令实现 ───
@@ -175,13 +229,24 @@ function cmdSetup() {
 }
 
 function cmdInstall() {
+  const force = hasFlag("force");
   console.log("📦 安装 openclaw-openapi 插件...\n");
 
-  // 找到插件源目录（bin/openapi-cli.js 的上一级）
-  const __filename = fileURLToPath(import.meta.url);
-  const pluginDir = join(dirname(__filename), "..");
+  const pluginDir = getPluginDir();
   const extensionsDir = getExtensionsDir();
-  const targetDir = join(extensionsDir, "openclaw-openapi");
+  const targetDir = getTargetDir();
+
+  // 如果目标已存在，先清理
+  if (existsSync(targetDir)) {
+    if (!force) {
+      console.log(`⚠ 插件目录已存在: ${targetDir}`);
+      console.log(`  使用 --force 强制重新安装，或先运行 uninstall`);
+      console.log(`  提示: ${getCmd()} reinstall 可一键重装\n`);
+      return;
+    }
+    console.log("🗑 清理旧安装...");
+    removePluginDir();
+  }
 
   // 先尝试 openclaw CLI
   let installed = false;
@@ -200,15 +265,6 @@ function cmdInstall() {
     mkdirSync(extensionsDir, { recursive: true });
 
     try {
-      if (existsSync(targetDir)) {
-        const stat = lstatSync(targetDir);
-        if (stat.isSymbolicLink()) {
-          unlinkSync(targetDir);
-        }
-      }
-    } catch { /* ignore */ }
-
-    try {
       symlinkSync(pluginDir, targetDir, "dir");
       console.log(`✅ 已链接: ${targetDir} -> ${pluginDir}`);
       installed = true;
@@ -219,16 +275,19 @@ function cmdInstall() {
   }
 
   if (installed) {
-    console.log("\n💡 接下来运行: openclaw-openapi setup --port 3210");
+    console.log(`\n💡 接下来运行: ${getCmd()} setup --port 3210`);
     console.log("💡 然后重启:   openclaw restart");
   }
 }
 
 function cmdUninstall() {
   const config = readConfig();
+  let configChanged = false;
+
+  // 移除通道配置
   if (config.channels?.openapi) {
     delete config.channels.openapi;
-    writeConfig(config);
+    configChanged = true;
     console.log("✅ 已移除 Open API 通道配置");
   } else {
     console.log("ℹ Open API 通道配置不存在，无需移除");
@@ -237,30 +296,41 @@ function cmdUninstall() {
   // 清理 plugins.entries 残留
   if (config.plugins?.entries?.["openclaw-openapi"]) {
     delete config.plugins.entries["openclaw-openapi"];
-    writeConfig(config);
+    configChanged = true;
     console.log("✅ 已清理 plugins.entries 残留");
   }
 
+  if (configChanged) {
+    writeConfig(config);
+  }
+
   // 尝试 CLI 卸载
+  let cliUninstalled = false;
   try {
     execSync("openclaw plugins uninstall openclaw-openapi", {
       stdio: "inherit",
     });
+    cliUninstalled = true;
   } catch {
-    // 手动移除符号链接
-    const targetDir = join(getExtensionsDir(), "openclaw-openapi");
-    try {
-      if (existsSync(targetDir)) {
-        const stat = lstatSync(targetDir);
-        if (stat.isSymbolicLink()) {
-          unlinkSync(targetDir);
-          console.log("✅ 已移除插件符号链接");
-        }
-      }
-    } catch { /* ignore */ }
+    // CLI 卸载失败，手动移除
   }
 
+  if (!cliUninstalled) {
+    removePluginDir();
+  }
+
+  console.log("\n✅ 卸载完成");
   console.log("💡 重启 OpenClaw 使更改生效: openclaw restart");
+}
+
+function cmdReinstall() {
+  console.log("🔄 重新安装 openclaw-openapi 插件...\n");
+  console.log("── 步骤 1: 卸载 ──\n");
+  cmdUninstall();
+  console.log("\n── 步骤 2: 安装 ──\n");
+  // 强制安装模式
+  args.push("--force");
+  cmdInstall();
 }
 
 function cmdStatus() {
@@ -279,7 +349,7 @@ function cmdStatus() {
 
   if (!section) {
     console.log("\n  通道配置: ❌ 未配置");
-    console.log("\n💡 运行 openclaw-openapi setup 进行配置");
+    console.log(`\n💡 运行 ${getCmd()} setup 进行配置`);
     return;
   }
 
@@ -289,7 +359,7 @@ function cmdStatus() {
   // 检查 stale entries
   if (config.plugins?.entries?.["openclaw-openapi"] && !pluginInstalled) {
     console.log("\n  ⚠ plugins.entries 中存在残留条目（插件未正确安装）");
-    console.log("  💡 运行 openclaw-openapi install 安装插件");
+    console.log(`  💡 运行 ${getCmd()} install 安装插件`);
   }
 }
 
@@ -341,6 +411,9 @@ switch (command) {
     break;
   case "uninstall":
     cmdUninstall();
+    break;
+  case "reinstall":
+    cmdReinstall();
     break;
   case "status":
     cmdStatus();
