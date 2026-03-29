@@ -35,7 +35,9 @@
   "scripts": {
     "build": "tsc || true",
     "dev": "tsc --watch",
-    "prepack": "npm install --omit=dev"
+    "prepack": "npm install --omit=dev",
+    "setup": "npm install && npm run build && openclaw plugins install .",
+    "uninstall": "openclaw plugins uninstall openclaw-openapi && openclaw restart"
   },
   "dependencies": {
     "ws": "^8.18.0"
