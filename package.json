@@ -24,7 +24,13 @@
     ],
     "channel": {
       "id": "openapi",
-      "label": "Open API"
+      "label": "Open API",
+      "selectionLabel": "Open API (WebSocket)",
+      "blurb": "Connect to OpenClaw via WebSocket API for custom clients",
+      "order": 90
+    },
+    "install": {
+      "npmSpec": "@openclaw/openapi"
     }
   },
   "scripts": {

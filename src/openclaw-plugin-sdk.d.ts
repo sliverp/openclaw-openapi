@@ -145,19 +145,75 @@ declare module "openclaw/plugin-sdk" {
   }
 
   export interface SetupInput {
-    token?: string;
-    tokenFile?: string;
-    useEnv?: boolean;
     name?: string;
+    token?: string;
+    privateKey?: string;
+    tokenFile?: string;
+    botToken?: string;
+    appToken?: string;
+    signalNumber?: string;
+    cliPath?: string;
+    dbPath?: string;
+    service?: string;
+    region?: string;
+    authDir?: string;
+    httpUrl?: string;
+    httpHost?: string;
+    httpPort?: string;
+    webhookPath?: string;
+    webhookUrl?: string;
+    audienceType?: string;
+    audience?: string;
+    useEnv?: boolean;
+    homeserver?: string;
+    userId?: string;
+    accessToken?: string;
+    password?: string;
+    deviceName?: string;
+    initialSyncLimit?: number;
+    ship?: string;
+    url?: string;
+    relayUrls?: string;
+    code?: string;
+    groupChannels?: string[];
+    dmAllowlist?: string[];
+    autoDiscoverChannels?: boolean;
     [key: string]: unknown;
   }
 
   export interface ChannelPluginSetup {
-    resolveAccountId?: (ctx: { accountId?: string }) => string;
-    applyAccountName?: (ctx: { cfg: OpenClawConfig; accountId: string; name: string }) => OpenClawConfig;
-    validateInput?: (ctx: { input: SetupInput }) => string | null;
-    applyConfig?: (ctx: { cfg: OpenClawConfig; input: SetupInput }) => OpenClawConfig;
-    applyAccountConfig?: (ctx: { cfg: OpenClawConfig; accountId: string; input: SetupInput }) => OpenClawConfig;
+    resolveAccountId?: (params: {
+      cfg: OpenClawConfig;
+      accountId?: string;
+      input?: SetupInput;
+    }) => string;
+    resolveBindingAccountId?: (params: {
+      cfg: OpenClawConfig;
+      agentId: string;
+      accountId?: string;
+    }) => string | undefined;
+    applyAccountName?: (params: {
+      cfg: OpenClawConfig;
+      accountId: string;
+      name?: string;
+    }) => OpenClawConfig;
+    applyAccountConfig: (params: {
+      cfg: OpenClawConfig;
+      accountId: string;
+      input: SetupInput;
+    }) => OpenClawConfig;
+    afterAccountConfigWritten?: (params: {
+      previousCfg: OpenClawConfig;
+      cfg: OpenClawConfig;
+      accountId: string;
+      input: SetupInput;
+      runtime: unknown;
+    }) => Promise<void> | void;
+    validateInput?: (params: {
+      cfg: OpenClawConfig;
+      accountId: string;
+      input: SetupInput;
+    }) => string | null;
   }
 
   export interface ChannelPlugin<TAccount = unknown> {

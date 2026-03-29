@@ -1,4 +1,4 @@
-import type { ChannelPlugin, OpenClawConfig, SetupInput } from "openclaw/plugin-sdk";
+import type { ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk";
 import type { ResolvedOpenApiAccount, OpenApiChannelConfig } from "./types.js";
 import {
   DEFAULT_ACCOUNT_ID,
@@ -125,13 +125,11 @@ export const openApiPlugin: ChannelPlugin<ResolvedOpenApiAccount> = {
       return cfg;
     },
 
-    validateInput: ({ input }: { input: SetupInput }) => {
-      // openapi 插件不需要 token（可选），但如果提供了 --token 就用它做认证 token
-      // 没有强制必填字段，所以始终返回 null（通过）
+    validateInput: () => {
       return null;
     },
 
-    applyAccountConfig: ({ cfg, accountId, input }: { cfg: OpenClawConfig; accountId: string; input: SetupInput }) => {
+    applyAccountConfig: ({ cfg, accountId, input }) => {
       const section = ensureOpenApiSection(cfg);
 
       // 解析 --token 参数中可能包含的 port:host:token 格式
