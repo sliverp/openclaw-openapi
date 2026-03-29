@@ -19,7 +19,7 @@
   "openclaw": {
     "id": "openclaw-openapi",
     "extensions": [
-      "./dist/index.js"
+      "./index.ts"
     ],
     "channel": {
       "id": "openapi",
