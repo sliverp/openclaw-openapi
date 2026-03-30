@@ -44,7 +44,7 @@ client.disconnect();
 
 ### `connect(): Promise<void>`
 
-连接服务器并完成认证。Node.js 下通过 HTTP Header (`Authorization: Bearer <token>`) 认证。
+连接服务器并完成认证。Node.js 下通过 HTTP Header (`Authorization: Bearer <token>`) 自动认证，连接后直接可用，无需额外发送认证消息。
 
 ```typescript
 await client.connect();
@@ -52,7 +52,7 @@ await client.connect();
 
 ### `send(text, options?): Promise<Reply>`
 
-发送消息并等待 AI 回复。
+发送消息并等待 AI 回复。返回 `Reply` 对象。
 
 ```typescript
 const reply = await client.send("帮我写一首诗", {
@@ -91,8 +91,8 @@ console.log(reply.mediaUrl);  // 媒体附件 URL（如有）
 import { OpenClawClient } from "@openclaw/openapi/client";
 
 const client = new OpenClawClient({
-  url: "ws://43.135.32.163:3210/openapi/ws",
-  token: "147258369",
+  url: "ws://your-server:3210/openapi/ws",
+  token: "your-token",
   clientId: "my-app",
   autoReconnect: true,
   maxReconnects: 5,
@@ -122,8 +122,8 @@ main().catch(console.error);
 
 ## 认证方式
 
-- **Node.js**：通过 HTTP Header `Authorization: Bearer <token>` 自动认证，连接后直接可用
-- **浏览器**：浏览器原生 WebSocket 不支持自定义 Header，需服务端配合 query string 或其他方式（当前版本暂不支持浏览器 token 传递）
+- **Node.js**：通过 HTTP Header `Authorization: Bearer <token>` 自动认证，连接建立后服务端直接返回 `auth_result`，无需额外发送认证消息
+- **浏览器**：浏览器原生 WebSocket 不支持自定义 Header，需在连接后发送 `{ type: "auth", token: "...", clientId: "..." }` JSON 消息进行认证
 
 ## 注意事项
 
@@ -131,3 +131,4 @@ main().catch(console.error);
 - 同一个 `clientId` 只允许一个连接，新连接会踢掉旧连接
 - 开启 `autoReconnect` 后，非主动断开会自动重连
 - 心跳间隔 30 秒，SDK 内部自动维护
+- 如果 30 秒内未完成认证，服务端会主动断开连接

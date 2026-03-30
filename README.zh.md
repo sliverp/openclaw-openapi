@@ -37,7 +37,7 @@
 | 功能 | 说明 |
 |------|------|
 | 🔌 **WebSocket 接口** | 标准 WebSocket 协议，任何语言、任何平台都能接入 |
-| 🔒 **Token 认证** | 可选的 Token 认证机制，保障连接安全 |
+| 🔒 **Token 认证** | 支持 HTTP Header 或 JSON 消息两种认证方式 |
 | 💬 **会话管理** | 每个客户端支持多个独立对话会话 |
 | 🔄 **自动重连** | 客户端 SDK 内置可配置的断线重连 |
 | ❤️ **心跳检测** | 内置 ping/pong 机制检测失效连接 |
@@ -51,52 +51,30 @@
 ### 第一步 — 安装插件
 
 ```bash
-# 从 npm 安装（发布后）
-openclaw plugins install @openclaw/openapi
-
-# 或从本地源码安装
+# 从本地源码安装
 cd openclaw-openapi
 npm install && npm run build
-openclaw plugins install ./
+openclaw plugins install .
 ```
 
 ### 第二步 — 配置
 
-#### 方式 A：命令行工具（推荐）
-
-```bash
-# 快速配置，默认端口 3210，无认证
-openclaw-openapi setup
-
-# 指定端口 + 自动生成安全 token
-openclaw-openapi setup --port 3210 --generate-token
-
-# 手动指定全部参数
-openclaw-openapi setup --port 8080 --host 0.0.0.0 --token my-secret
-
-# 查看当前配置
-openclaw-openapi status
-```
-
-#### 方式 B：一键脚本
-
-```bash
-# 自动生成 token + 配置 + 重启
-bash scripts/setup.sh --port 3210 --generate-token
-
-# 完整参数
-bash scripts/setup.sh --port 8080 --host 0.0.0.0 --token my-secret --no-restart
-```
-
-#### 方式 C：OpenClaw 内置通道 CLI
+#### 方式 A：OpenClaw 通道命令（推荐）
 
 ```bash
 openclaw channels add --channel openapi --token "3210:my-secret"
 ```
 
-`--token` 参数支持复合格式：`port:token` 或 `host:port:token`。
+`--token` 参数支持以下复合格式：
 
-#### 方式 D：手动编辑 JSON
+| 格式 | 示例 | 含义 |
+|------|------|------|
+| `端口` | `"3210"` | 只指定端口，无认证 |
+| `token` | `"my-secret"` | 默认端口 3210，使用 token 认证 |
+| `端口:token` | `"3210:my-secret"` | 指定端口 + token |
+| `主机:端口:token` | `"0.0.0.0:3210:secret"` | 指定 host + 端口 + token |
+
+#### 方式 B：手动编辑 JSON
 
 <details>
 <summary>点击展开</summary>
@@ -127,10 +105,10 @@ openclaw channels add --channel openapi --token "3210:my-secret"
 | `host` | `0.0.0.0` | 绑定地址（`0.0.0.0` = 所有网卡） |
 | `token` | *(空)* | 客户端连接时需要提供的认证 Token（留空则跳过认证检查） |
 
-### 第三步 — 启动 OpenClaw
+### 第三步 — 重启 OpenClaw
 
 ```bash
-openclaw gateway restart
+openclaw restart
 ```
 
 日志中将出现：
@@ -145,7 +123,7 @@ openclaw gateway restart
 import { OpenClawClient } from "@openclaw/openapi/client";
 
 const client = new OpenClawClient({
-  url: "ws://your-server:3210",
+  url: "ws://your-server:3210/openapi/ws",
   token: "your-secret-token",
 });
 
@@ -163,17 +141,21 @@ client.disconnect();
 
 客户端 SDK 位于 `client/` 目录，同时支持 **Node.js** 和**浏览器**环境。
 
-### 安装
+### 安装依赖
+
+Node.js 环境需要安装 `ws` 包：
 
 ```bash
-npm install @openclaw/openapi
+npm install ws
 ```
+
+浏览器环境使用原生 WebSocket，无需额外依赖。
 
 ### 构造参数
 
 ```typescript
 const client = new OpenClawClient({
-  url: "ws://localhost:3210",  // 必填：服务器地址
+  url: "ws://localhost:3210/openapi/ws",  // 必填：服务器 WebSocket 端点
   token: "my-token",           // 可选：认证 Token
   clientId: "my-app",          // 可选：客户端持久标识
   connectTimeout: 10000,       // 可选：连接超时，毫秒（默认 10s）
@@ -234,9 +216,17 @@ if (client.isConnected) {
 
 所有消息均为标准 WebSocket 连接上的 JSON 字符串。
 
-### 客户端 → 服务器
+### 认证方式
 
-#### `auth` — 认证（必须第一个发送）
+支持两种认证方式：
+
+**方式一：HTTP Header 认证（Node.js 推荐）**
+
+客户端 SDK 在 WebSocket 握手时自动通过 `Authorization: Bearer <token>` HTTP Header 发送 Token，连接建立后无需额外发送认证消息。
+
+**方式二：JSON 认证消息（浏览器降级方案）**
+
+浏览器原生 WebSocket 不支持自定义 Header，需在连接后第一条消息发送认证：
 
 ```json
 {
@@ -245,6 +235,22 @@ if (client.isConnected) {
   "clientId": "my-app"
 }
 ```
+
+服务端响应：
+
+```json
+{ "type": "auth_result", "ok": true }
+```
+
+或认证失败：
+
+```json
+{ "type": "auth_result", "ok": false, "error": "Invalid token" }
+```
+
+> 如果 30 秒内未完成认证，连接将被关闭。
+
+### 客户端 → 服务器
 
 #### `message` — 向 AI 发送消息
 
@@ -265,16 +271,6 @@ if (client.isConnected) {
 ```
 
 ### 服务器 → 客户端
-
-#### `auth_result` — 认证结果
-
-```json
-{ "type": "auth_result", "ok": true }
-```
-
-```json
-{ "type": "auth_result", "ok": false, "error": "Invalid token" }
-```
 
 #### `reply` — AI 回复
 
@@ -350,6 +346,25 @@ if (client.isConnected) {
 
 ---
 
+## 🛠️ CLI 辅助工具
+
+插件提供了一个辅助命令行工具：
+
+```bash
+# 查看当前安装和配置状态
+openclaw-openapi status
+
+# 生成随机安全 Token
+openclaw-openapi generate-token
+
+# 查看帮助
+openclaw-openapi --help
+```
+
+> 注意：安装/卸载/配置操作请直接使用 `openclaw` 命令（见第一步和第二步）。
+
+---
+
 ## 🏗️ 项目结构
 
 ```
@@ -359,14 +374,10 @@ openclaw-openapi/
 ├── tsconfig.json
 ├── index.ts                  # 插件入口
 │
-├── bin/                       # 命令行工具
+├── bin/                       # CLI 辅助工具
 │   └── openapi-cli.js         # `openclaw-openapi` 命令
 │
-├── scripts/                   # Shell 脚本
-│   └── setup.sh               # 一键安装配置脚本
-│
 ├── src/                      # 服务端插件代码
-│   ├── openclaw-plugin-sdk.d.ts  # SDK 类型声明
 │   ├── types.ts              # 类型定义 & WebSocket 协议
 │   ├── runtime.ts            # 运行时单例
 │   ├── config.ts             # 配置解析

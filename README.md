@@ -39,7 +39,7 @@ Unlike platform-specific channel plugins (QQ Bot, Telegram, Discord…), **Open 
 | Feature | Description |
 |---------|-------------|
 | 🔌 **WebSocket API** | Standard WebSocket protocol — connect from any language or platform |
-| 🔒 **Token Auth** | Optional token-based authentication for secure connections |
+| 🔒 **Token Auth** | Optional token-based authentication via HTTP Header or JSON message |
 | 💬 **Session Management** | Multiple independent conversation sessions per client |
 | 🔄 **Auto Reconnect** | Client SDK handles reconnection with configurable backoff |
 | ❤️ **Heartbeat** | Built-in ping/pong to detect stale connections |
@@ -53,52 +53,30 @@ Unlike platform-specific channel plugins (QQ Bot, Telegram, Discord…), **Open 
 ### Step 1 — Install the Plugin
 
 ```bash
-# Install from npm (when published)
-openclaw plugins install @openclaw/openapi
-
-# Or install from local source
+# From local source
 cd openclaw-openapi
 npm install && npm run build
-openclaw plugins install ./
+openclaw plugins install .
 ```
 
 ### Step 2 — Configure
 
-#### Option A: CLI (Recommended)
-
-```bash
-# Quick setup with default port (3210), no auth
-openclaw-openapi setup
-
-# Specify port and auto-generate a secure token
-openclaw-openapi setup --port 3210 --generate-token
-
-# Specify all options explicitly
-openclaw-openapi setup --port 8080 --host 0.0.0.0 --token my-secret
-
-# Check current configuration
-openclaw-openapi status
-```
-
-#### Option B: One-liner Shell Script
-
-```bash
-# Auto-generate token + configure + restart
-bash scripts/setup.sh --port 3210 --generate-token
-
-# Full options
-bash scripts/setup.sh --port 8080 --host 0.0.0.0 --token my-secret --no-restart
-```
-
-#### Option C: OpenClaw Built-in Channel CLI
+#### Option A: OpenClaw Channel CLI (Recommended)
 
 ```bash
 openclaw channels add --channel openapi --token "3210:my-secret"
 ```
 
-The `--token` parameter accepts a composite format: `port:token` or `host:port:token`.
+The `--token` parameter accepts a composite format:
 
-#### Option D: Manual JSON Edit
+| Format | Example | Meaning |
+|--------|---------|---------|
+| `port` | `"3210"` | Port only, no auth |
+| `token` | `"my-secret"` | Default port 3210, with token auth |
+| `port:token` | `"3210:my-secret"` | Specify port + token |
+| `host:port:token` | `"0.0.0.0:3210:secret"` | Specify host + port + token |
+
+#### Option B: Manual JSON Edit
 
 <details>
 <summary>Click to expand</summary>
@@ -129,10 +107,10 @@ Edit `~/.openclaw/openclaw.json`:
 | `host` | `0.0.0.0` | Bind address (`0.0.0.0` = all interfaces) |
 | `token` | *(empty)* | Auth token clients must present (leave empty to skip auth check) |
 
-### Step 3 — Start OpenClaw
+### Step 3 — Restart OpenClaw
 
 ```bash
-openclaw gateway restart
+openclaw restart
 ```
 
 You should see in logs:
@@ -147,7 +125,7 @@ You should see in logs:
 import { OpenClawClient } from "@openclaw/openapi/client";
 
 const client = new OpenClawClient({
-  url: "ws://your-server:3210",
+  url: "ws://your-server:3210/openapi/ws",
   token: "your-secret-token",
 });
 
@@ -167,15 +145,19 @@ The client SDK is shipped under `client/` and works in both **Node.js** and **br
 
 ### Installation
 
+Node.js requires the `ws` package:
+
 ```bash
-npm install @openclaw/openapi
+npm install ws
 ```
+
+Browsers use the native WebSocket API — no extra dependencies needed.
 
 ### Constructor Options
 
 ```typescript
 const client = new OpenClawClient({
-  url: "ws://localhost:3210",  // Required: server address
+  url: "ws://localhost:3210/openapi/ws",  // Required: server WebSocket endpoint
   token: "my-token",           // Optional: auth token
   clientId: "my-app",          // Optional: persistent client identity
   connectTimeout: 10000,       // Optional: connection timeout in ms (default: 10s)
@@ -236,9 +218,17 @@ if (client.isConnected) {
 
 All messages are JSON-encoded strings over a standard WebSocket connection.
 
-### Client → Server
+### Authentication
 
-#### `auth` — Authenticate (must be sent first)
+Two authentication methods are supported:
+
+**Method 1: HTTP Header (Node.js recommended)**
+
+The client SDK automatically sends the token via `Authorization: Bearer <token>` HTTP header during the WebSocket handshake. No additional auth message is needed after connection.
+
+**Method 2: JSON Auth Message (Browser fallback)**
+
+Since browsers' native WebSocket does not support custom headers, send an `auth` message as the first frame:
 
 ```json
 {
@@ -247,6 +237,22 @@ All messages are JSON-encoded strings over a standard WebSocket connection.
   "clientId": "my-app"
 }
 ```
+
+The server will respond with:
+
+```json
+{ "type": "auth_result", "ok": true }
+```
+
+or on failure:
+
+```json
+{ "type": "auth_result", "ok": false, "error": "Invalid token" }
+```
+
+> If no auth message is sent within 30 seconds, the connection will be closed.
+
+### Client → Server
 
 #### `message` — Send a message to the AI
 
@@ -267,16 +273,6 @@ All messages are JSON-encoded strings over a standard WebSocket connection.
 ```
 
 ### Server → Client
-
-#### `auth_result` — Authentication response
-
-```json
-{ "type": "auth_result", "ok": true }
-```
-
-```json
-{ "type": "auth_result", "ok": false, "error": "Invalid token" }
-```
 
 #### `reply` — AI reply to a message
 
@@ -352,6 +348,25 @@ Run multiple Open API endpoints with different ports/tokens:
 
 ---
 
+## 🛠️ CLI Helper
+
+The plugin ships a helper CLI tool:
+
+```bash
+# Show current installation and configuration status
+openclaw-openapi status
+
+# Generate a random secure token
+openclaw-openapi generate-token
+
+# Show help
+openclaw-openapi --help
+```
+
+> Note: Install/uninstall/setup operations should use the `openclaw` command directly (see Step 1 & 2).
+
+---
+
 ## 🏗️ Project Structure
 
 ```
@@ -361,14 +376,10 @@ openclaw-openapi/
 ├── tsconfig.json
 ├── index.ts                  # Plugin entry point
 │
-├── bin/                       # CLI tools
+├── bin/                       # CLI helper
 │   └── openapi-cli.js         # `openclaw-openapi` command
 │
-├── scripts/                   # Shell scripts
-│   └── setup.sh               # One-liner install & configure
-│
 ├── src/                      # Server-side plugin
-│   ├── openclaw-plugin-sdk.d.ts  # SDK type declarations
 │   ├── types.ts              # Types & WebSocket protocol
 │   ├── runtime.ts            # Runtime singleton
 │   ├── config.ts             # Configuration parsing
